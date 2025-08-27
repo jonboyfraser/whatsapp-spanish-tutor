@@ -8,16 +8,19 @@ import twilio from 'twilio';
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 
+// Twilio client
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const FROM = process.env.TWILIO_WHATSAPP_NUMBER;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load playbooks
 const week1 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week1_playbook_progress.json')));
 const week2 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week2_playbook_progress.json')));
 const playbooks = [week1, week2];
 
+// In-memory user state
 const users = new Map();
 
 function sendWhatsApp(to, lines) {
@@ -61,7 +64,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
   if (['ES','EN','BILINGÜE','BILINGUE'].includes(text.toUpperCase())) {
     state.mode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
     await sendWhatsApp(from, bilingual(`Modo actualizado: ${state.mode}.`, `Mode updated: ${state.mode}.`, state.mode));
-    return res.sendStatus(200);
+    return res.end();
   }
 
   const found = findLesson(state.lessonId) || {};
@@ -70,7 +73,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
   if (/^WARMUP$/i.test(text)) {
     const opener = pb.openers.find(o => o.id === lesson.warmup);
     if (opener) await sendWhatsApp(from, bilingual(opener.es, opener.en, state.mode));
-    return res.sendStatus(200);
+    return res.end();
   }
 
   if (/^QUIZ$/i.test(text)) {
@@ -80,11 +83,11 @@ app.post('/webhook/whatsapp', async (req, res) => {
       await sendWhatsApp(from, ['ES: ' + q.prompt]);
       state.lastQuiz = qid;
     }
-    return res.sendStatus(200);
+    return res.end();
   }
 
   if (state.lastQuiz) {
-    const q = playbooks.flatMap(pb=>pb.quizzes).find(x => x.id === state.lastQuiz);
+    const q = pb.quizzes.find(x => x.id === state.lastQuiz);
     if (q) {
       const norm = s => String(s).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').trim();
       const correct = norm(text) === norm(q.answer);
@@ -97,7 +100,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
       }
       state.lastQuiz = null;
     }
-    return res.sendStatus(200);
+    return res.end();
   }
 
   if (/^TASK$/i.test(text)) {
@@ -106,7 +109,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
       await sendWhatsApp(from, bilingual(task.es, task.en, state.mode));
       state.expectTask = lesson.task;
     }
-    return res.sendStatus(200);
+    return res.end();
   }
 
   if (state.expectTask) {
@@ -114,13 +117,13 @@ app.post('/webhook/whatsapp', async (req, res) => {
     state.expectTask = null;
     state.lessonId = nextLessonId(state.lessonId);
     await sendWhatsApp(from, bilingual(`Avanzamos a la lección ${state.lessonId}.`, `Advancing to lesson ${state.lessonId}.`, state.mode));
-    return res.sendStatus(200);
+    return res.end();
   }
 
   if (/^REFLECT$/i.test(text)) {
     const refl = pb.reflections.find(r => r.id === lesson.reflection);
     if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, state.mode));
-    return res.sendStatus(200);
+    return res.end();
   }
 
   await sendWhatsApp(from, bilingual(
@@ -128,7 +131,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
     'Commands: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
     state.mode
   ));
-  res.sendStatus(200);
+  res.end();
 });
 
 app.get('/', (_,res)=> res.send('OK'));
