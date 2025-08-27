@@ -1,0 +1,529 @@
+{
+  "metadata": {
+    "name": "Week 1 Conversation Playbook",
+    "version": "1.2",
+    "timezone": "Europe/London",
+    "mode": "progress-driven",
+    "levels": [
+      "A0",
+      "A1"
+    ],
+    "notes": "A0 ramp → A1 basics. Persona handles tone & bilingual output (ES+EN). Quizzes: ES-only prompts; feedback bilingual."
+  },
+  "schedule": {
+    "daily_triggers": [
+      {
+        "time": "08:15",
+        "type": "warmup"
+      },
+      {
+        "time": "12:30",
+        "type": "quiz"
+      },
+      {
+        "time": "16:30",
+        "type": "task"
+      },
+      {
+        "time": "20:15",
+        "type": "reflection"
+      }
+    ],
+    "fallback": {
+      "no_reply_minutes": 120,
+      "max_nudges": 1,
+      "nudge_template_id": "NUDGE_01"
+    },
+    "mute_policy": {
+      "respect_user_mute": true
+    }
+  },
+  "progression": {
+    "state_keys": [
+      "current_lesson_id",
+      "last_activity_ts",
+      "accuracy_rolling"
+    ],
+    "auto_advance": true,
+    "advance_rule": {
+      "min_quiz_correct": 1,
+      "require_task_response": true
+    },
+    "review_rule": {
+      "if_accuracy_below": 0.5,
+      "action": "repeat_lesson",
+      "with_variant": true
+    },
+    "idle_rule": {
+      "no_activity_hours": 24,
+      "nudge_template_id": "NUDGE_01"
+    },
+    "commands": {
+      "next": "NEXT",
+      "review": "REVIEW",
+      "mode_es": "ES",
+      "mode_en": "EN",
+      "mode_bilingual": "BILINGÜE"
+    }
+  },
+  "templates": {
+    "nudge": [
+      {
+        "id": "NUDGE_01",
+        "es": "¡Hey! Cuando tengas un minuto seguimos 😉. ¿Te apetece un mini reto rápido?",
+        "en": "Hey! When you have a minute we’ll continue 😉. Fancy a quick challenge?"
+      }
+    ],
+    "feedback": {
+      "correct": [
+        {
+          "id": "FB_OK_01",
+          "es": "¡Perfecto! 👏",
+          "en": "Perfect!"
+        },
+        {
+          "id": "FB_OK_02",
+          "es": "¡Genial, muy bien! 🚀",
+          "en": "Great, well done!"
+        }
+      ],
+      "partial": [
+        {
+          "id": "FB_PART_01",
+          "es": "¡Casi! 👉 Mira este modelo: ${model}.",
+          "en": "Almost! 👉 Here’s the model: ${model}."
+        }
+      ],
+      "incorrect": [
+        {
+          "id": "FB_BAD_01",
+          "es": "Pequeño ajuste: ${tip}. Ejemplo: ${model}.",
+          "en": "Small fix: ${tip}. Example: ${model}."
+        }
+      ]
+    }
+  },
+  "openers": [
+    {
+      "id": "O_A0_01",
+      "level": "A0",
+      "topic": "greetings",
+      "es": "¡Hola! ☕ Hoy practicamos saludos. Di: ‘Buenos días’.",
+      "en": "Hi! ☕ Today let’s practice greetings. Say: ‘Good morning’."
+    },
+    {
+      "id": "O_A0_02",
+      "level": "A0",
+      "topic": "numbers",
+      "es": "Cuenta del 1 al 5 en voz alta (o escríbelo).",
+      "en": "Count from 1 to 5 out loud (or write it)."
+    },
+    {
+      "id": "O_A0_03",
+      "level": "A0",
+      "topic": "survival",
+      "es": "Si no entiendes algo, escribe: ‘No entiendo, más despacio 🙏’. ¿Lo pruebas?",
+      "en": "If you don’t understand, type: ‘No entiendo, más despacio 🙏’. Want to try?"
+    },
+    {
+      "id": "O_A1_01",
+      "level": "A1",
+      "topic": "introductions",
+      "es": "¡Buenos días! Preséntate: ‘Me llamo __ y soy de __’.",
+      "en": "Good morning! Introduce yourself: ‘My name is __ and I’m from __’."
+    },
+    {
+      "id": "O_A1_02",
+      "level": "A1",
+      "topic": "family",
+      "es": "Hablemos de tu familia: ‘Tengo __ hermano(s)/hermana(s)’.",
+      "en": "Let’s talk about your family: ‘I have __ brother(s)/sister(s)’."
+    },
+    {
+      "id": "O_A1_03",
+      "level": "A1",
+      "topic": "routine",
+      "es": "Rutina: ‘Por la mañana, __. Por la tarde, __.’",
+      "en": "Routine: ‘In the morning, __. In the afternoon, __.’"
+    },
+    {
+      "id": "O_A1_04",
+      "level": "A1",
+      "topic": "food",
+      "es": "Café time ☕: ‘Quiero un café con leche, por favor’. ¿Qué pides tú?",
+      "en": "Coffee time ☕: ‘I want a coffee with milk, please’. What would you order?"
+    }
+  ],
+  "quizzes": [
+    {
+      "id": "Q_A0_01",
+      "level": "A0",
+      "type": "translate",
+      "prompt": "Translate to Spanish: hello",
+      "answer": "hola",
+      "pcic_tags": [
+        "saludos"
+      ]
+    },
+    {
+      "id": "Q_A0_02",
+      "level": "A0",
+      "type": "cloze",
+      "prompt": "Completa: ‘Buenos ___’ (morning)",
+      "answer": "días",
+      "pcic_tags": [
+        "saludos"
+      ]
+    },
+    {
+      "id": "Q_A0_03",
+      "level": "A0",
+      "type": "mcq",
+      "prompt": "¿Qué número es ‘tres’?",
+      "options": [
+        "2",
+        "3",
+        "5"
+      ],
+      "answer": "3",
+      "pcic_tags": [
+        "números"
+      ]
+    },
+    {
+      "id": "Q_A0_04",
+      "level": "A0",
+      "type": "translate",
+      "prompt": "Translate: I don’t understand",
+      "answer": "No entiendo",
+      "pcic_tags": [
+        "supervivencia"
+      ]
+    },
+    {
+      "id": "Q_A1_01",
+      "level": "A1",
+      "type": "cloze",
+      "prompt": "Completa: ‘Me ____ John.’",
+      "answer": "llamo",
+      "pcic_tags": [
+        "presentaciones"
+      ]
+    },
+    {
+      "id": "Q_A1_02",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: I live in London",
+      "answer": "Vivo en Londres",
+      "pcic_tags": [
+        "rutina",
+        "verbo_vivir"
+      ]
+    },
+    {
+      "id": "Q_A1_03",
+      "level": "A1",
+      "type": "mcq",
+      "prompt": "¿Cuál es correcto?",
+      "options": [
+        "Tengo 20 año",
+        "Tengo 20 años",
+        "Tengo años 20"
+      ],
+      "answer": "Tengo 20 años",
+      "pcic_tags": [
+        "tener_edad"
+      ]
+    },
+    {
+      "id": "Q_A1_04",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: Where is the bathroom?",
+      "answer": "¿Dónde está el baño?",
+      "pcic_tags": [
+        "direcciones",
+        "estar"
+      ]
+    },
+    {
+      "id": "Q_A1_05",
+      "level": "A1",
+      "type": "cloze",
+      "prompt": "Completa: ‘Quiero un ___, por favor.’ (coffee)",
+      "answer": "café",
+      "pcic_tags": [
+        "cafetería"
+      ]
+    },
+    {
+      "id": "Q_A1_06",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: I work in an office",
+      "answer": "Trabajo en una oficina",
+      "pcic_tags": [
+        "rutina",
+        "trabajo"
+      ]
+    },
+    {
+      "id": "Q_A1_07",
+      "level": "A1",
+      "type": "mcq",
+      "prompt": "Ser vs estar (location): ‘Yo ___ en casa.’",
+      "options": [
+        "soy",
+        "estoy"
+      ],
+      "answer": "estoy",
+      "pcic_tags": [
+        "ser_estar"
+      ]
+    },
+    {
+      "id": "Q_A1_08",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: I have two sisters",
+      "answer": "Tengo dos hermanas",
+      "pcic_tags": [
+        "familia",
+        "tener"
+      ]
+    },
+    {
+      "id": "Q_A1_09",
+      "level": "A1",
+      "type": "cloze",
+      "prompt": "Completa: ‘¿___ vives?’",
+      "answer": "Dónde",
+      "pcic_tags": [
+        "interrogativos"
+      ]
+    },
+    {
+      "id": "Q_A1_10",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: I want water, please",
+      "answer": "Quiero agua, por favor",
+      "pcic_tags": [
+        "cafetería",
+        "pedir"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T_A0_01",
+      "level": "A0",
+      "type": "drill",
+      "es": "Escribe: Hola / Adiós / Gracias / Por favor.",
+      "en": "Write: Hello / Goodbye / Thank you / Please."
+    },
+    {
+      "id": "T_A0_02",
+      "level": "A0",
+      "type": "count",
+      "es": "Cuenta objetos a tu alrededor (1–10) y escribe 3 ejemplos.",
+      "en": "Count objects around you (1–10) and write 3 examples."
+    },
+    {
+      "id": "T_A1_01",
+      "level": "A1",
+      "type": "introduction",
+      "es": "Presentación completa: Me llamo __, soy de __, vivo en __.",
+      "en": "Full introduction: My name is __, I’m from __, I live in __."
+    },
+    {
+      "id": "T_A1_02",
+      "level": "A1",
+      "type": "family",
+      "es": "Di 3 frases sobre tu familia (Tengo __, Mi __ se llama __).",
+      "en": "Write 3 sentences about your family (I have __, My __ is called __)."
+    },
+    {
+      "id": "T_A1_03",
+      "level": "A1",
+      "type": "routine",
+      "es": "Describe 3 acciones de tu mañana (Uso el presente).",
+      "en": "Describe 3 actions from your morning (Use present tense)."
+    },
+    {
+      "id": "T_A1_04",
+      "level": "A1",
+      "type": "cafeteria",
+      "es": "Haz un pedido breve: bebida + comida + ‘por favor’.",
+      "en": "Make a short order: drink + food + ‘please’."
+    },
+    {
+      "id": "T_A1_05",
+      "level": "A1",
+      "type": "directions",
+      "es": "Pregunta por el baño y por una calle cercana (2 frases).",
+      "en": "Ask for the bathroom and a nearby street (2 sentences)."
+    }
+  ],
+  "reflections": [
+    {
+      "id": "R_01",
+      "es": "¿Qué palabra nueva usaste hoy?",
+      "en": "What new word did you use today?"
+    },
+    {
+      "id": "R_02",
+      "es": "Valora tu día: 1–5 ⭐. ¿Qué te costó?",
+      "en": "Rate your day: 1–5 ⭐. What was hard?"
+    },
+    {
+      "id": "R_03",
+      "es": "Escribe una frase con ‘tener’.",
+      "en": "Write a sentence with ‘tener’."
+    },
+    {
+      "id": "R_04",
+      "es": "Hoy, ¿ser o estar? Escribe 1 ejemplo de cada.",
+      "en": "Today, ser or estar? Write 1 example of each."
+    },
+    {
+      "id": "R_05",
+      "es": "¿Qué pedirías en un café mañana?",
+      "en": "What would you order in a café tomorrow?"
+    },
+    {
+      "id": "R_06",
+      "es": "¿Qué harás mañana? Usa ‘voy a…’.",
+      "en": "What will you do tomorrow? Use ‘voy a…’."
+    },
+    {
+      "id": "R_07",
+      "es": "Una mini victoria de hoy en español 💪",
+      "en": "One small Spanish win from today 💪"
+    }
+  ],
+  "voice_pack_future": [
+    {
+      "id": "V_01",
+      "slow": "Es-toy a-pren-dien-do es-pa-ñol.",
+      "normal": "Estoy aprendiendo español.",
+      "tip": "Entona hacia abajo al final.",
+      "en": "I am learning Spanish. Intonation goes down at the end."
+    },
+    {
+      "id": "V_02",
+      "slow": "Me lla-mo __.",
+      "normal": "Me llamo __.",
+      "tip": "Doble ‘ll’ suena como ‘y’.",
+      "en": "My name is __. Double ‘ll’ sounds like ‘y’."
+    }
+  ],
+  "lesson_plans": [
+    {
+      "id": "L01",
+      "focus": "A0 – greetings & numbers",
+      "warmup": "O_A0_01",
+      "quiz": [
+        "Q_A0_01",
+        "Q_A0_02"
+      ],
+      "task": "T_A0_01",
+      "reflection": "R_01",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L02",
+      "focus": "A0 – survival phrases & counting",
+      "warmup": "O_A0_03",
+      "quiz": [
+        "Q_A0_03",
+        "Q_A0_04"
+      ],
+      "task": "T_A0_02",
+      "reflection": "R_02",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L03",
+      "focus": "A1 – introductions",
+      "warmup": "O_A1_01",
+      "quiz": [
+        "Q_A1_01",
+        "Q_A1_02"
+      ],
+      "task": "T_A1_01",
+      "reflection": "R_03",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L04",
+      "focus": "A1 – family & tener",
+      "warmup": "O_A1_02",
+      "quiz": [
+        "Q_A1_03",
+        "Q_A1_08"
+      ],
+      "task": "T_A1_02",
+      "reflection": "R_04",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L05",
+      "focus": "A1 – daily routine & vivir/trabajar",
+      "warmup": "O_A1_03",
+      "quiz": [
+        "Q_A1_06",
+        "Q_A1_09"
+      ],
+      "task": "T_A1_03",
+      "reflection": "R_07",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L06",
+      "focus": "A1 – café orders & pedir",
+      "warmup": "O_A1_04",
+      "quiz": [
+        "Q_A1_05",
+        "Q_A1_10"
+      ],
+      "task": "T_A1_04",
+      "reflection": "R_05",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L07",
+      "focus": "A1 – directions & ser/estar (location)",
+      "warmup": "O_A1_03",
+      "quiz": [
+        "Q_A1_04",
+        "Q_A1_07"
+      ],
+      "task": "T_A1_05",
+      "reflection": "R_06",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    }
+  ]
+}

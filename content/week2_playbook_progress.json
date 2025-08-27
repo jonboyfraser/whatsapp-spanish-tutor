@@ -1,0 +1,449 @@
+{
+  "metadata": {
+    "name": "Week 2 Conversation Playbook",
+    "version": "1.0",
+    "timezone": "Europe/London",
+    "mode": "progress-driven",
+    "levels": [
+      "A1"
+    ],
+    "notes": "A1 consolidation + shopping, health basics, social plans (ir + a + infinitive), directions review. Persona handles tone & bilingual output (ES+EN). Quizzes: ES-only prompts; feedback bilingual."
+  },
+  "schedule": {
+    "daily_triggers": [
+      {
+        "time": "08:15",
+        "type": "warmup"
+      },
+      {
+        "time": "12:30",
+        "type": "quiz"
+      },
+      {
+        "time": "16:30",
+        "type": "task"
+      },
+      {
+        "time": "20:15",
+        "type": "reflection"
+      }
+    ],
+    "fallback": {
+      "no_reply_minutes": 120,
+      "max_nudges": 1,
+      "nudge_template_id": "NUDGE_01"
+    },
+    "mute_policy": {
+      "respect_user_mute": true
+    }
+  },
+  "progression": {
+    "state_keys": [
+      "current_lesson_id",
+      "last_activity_ts",
+      "accuracy_rolling"
+    ],
+    "auto_advance": true,
+    "advance_rule": {
+      "min_quiz_correct": 1,
+      "require_task_response": true
+    },
+    "review_rule": {
+      "if_accuracy_below": 0.5,
+      "action": "repeat_lesson",
+      "with_variant": true
+    },
+    "idle_rule": {
+      "no_activity_hours": 24,
+      "nudge_template_id": "NUDGE_01"
+    },
+    "commands": {
+      "next": "NEXT",
+      "review": "REVIEW",
+      "mode_es": "ES",
+      "mode_en": "EN",
+      "mode_bilingual": "BILINGÜE"
+    }
+  },
+  "templates": {
+    "nudge": [
+      {
+        "id": "NUDGE_01",
+        "es": "¿Seguimos cuando puedas? Tengo un reto corto listo 😉",
+        "en": "Shall we continue when you can? I’ve got a quick challenge ready 😉"
+      }
+    ],
+    "feedback": {
+      "correct": [
+        {
+          "id": "FB_OK_01",
+          "es": "¡Perfecto! 👏",
+          "en": "Perfect!"
+        },
+        {
+          "id": "FB_OK_02",
+          "es": "¡Genial, muy bien! 🚀",
+          "en": "Great, well done!"
+        }
+      ],
+      "partial": [
+        {
+          "id": "FB_PART_01",
+          "es": "¡Casi! 👉 Modelo: ${model}.",
+          "en": "Almost! 👉 Model: ${model}."
+        }
+      ],
+      "incorrect": [
+        {
+          "id": "FB_BAD_01",
+          "es": "Pequeño ajuste: ${tip}. Ejemplo: ${model}.",
+          "en": "Small fix: ${tip}. Example: ${model}."
+        }
+      ]
+    }
+  },
+  "openers": [
+    {
+      "id": "O_A1_05",
+      "level": "A1",
+      "topic": "shopping",
+      "es": "Vamos de compras: “¿Cuánto cuesta __?”",
+      "en": "Let’s go shopping: “How much does __ cost?”"
+    },
+    {
+      "id": "O_A1_06",
+      "level": "A1",
+      "topic": "shopping",
+      "es": "Tallas y colores: “Busco una camiseta __ (color) talla __.”",
+      "en": "Sizes & colours: “I’m looking for a __ shirt, size __.”"
+    },
+    {
+      "id": "O_A1_07",
+      "level": "A1",
+      "topic": "health",
+      "es": "Salud básica: “Tengo dolor de __.”",
+      "en": "Health basics: “I have a __ ache.”"
+    },
+    {
+      "id": "O_A1_08",
+      "level": "A1",
+      "topic": "plans",
+      "es": "Planes: “Este finde voy a __.”",
+      "en": "Plans: “This weekend I’m going to __.”"
+    },
+    {
+      "id": "O_A1_09",
+      "level": "A1",
+      "topic": "directions",
+      "es": "Revisión: “¿Está cerca o lejos? ¿A la izquierda o a la derecha?”",
+      "en": "Review: “Is it near or far? To the left or to the right?”"
+    },
+    {
+      "id": "O_A1_10",
+      "level": "A1",
+      "topic": "food",
+      "es": "Mercado: “Quiero medio kilo de __, por favor.”",
+      "en": "Market: “I’d like half a kilo of __, please.”"
+    }
+  ],
+  "quizzes": [
+    {
+      "id": "Q_A1_11",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: How much does it cost?",
+      "answer": "¿Cuánto cuesta?",
+      "pcic_tags": [
+        "compras",
+        "precios"
+      ]
+    },
+    {
+      "id": "Q_A1_12",
+      "level": "A1",
+      "type": "cloze",
+      "prompt": "Completa: “Voy a ___ (comer) con mis amigos.”",
+      "answer": "comer",
+      "pcic_tags": [
+        "futuro_proximo"
+      ]
+    },
+    {
+      "id": "Q_A1_13",
+      "level": "A1",
+      "type": "mcq",
+      "prompt": "Elige la opción correcta: “Tengo dolor ___ cabeza.”",
+      "options": [
+        "de",
+        "en",
+        "a"
+      ],
+      "answer": "de",
+      "pcic_tags": [
+        "salud"
+      ]
+    },
+    {
+      "id": "Q_A1_14",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: I’m looking for a blue shirt.",
+      "answer": "Busco una camiseta azul.",
+      "pcic_tags": [
+        "compras",
+        "colores"
+      ]
+    },
+    {
+      "id": "Q_A1_15",
+      "level": "A1",
+      "type": "cloze",
+      "prompt": "Completa: “Sigue ___ calle y gira a la derecha.”",
+      "answer": "esta",
+      "pcic_tags": [
+        "direcciones",
+        "demostrativos"
+      ]
+    },
+    {
+      "id": "Q_A1_16",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: It’s near the station.",
+      "answer": "Está cerca de la estación.",
+      "pcic_tags": [
+        "direcciones",
+        "estar"
+      ]
+    },
+    {
+      "id": "Q_A1_17",
+      "level": "A1",
+      "type": "mcq",
+      "prompt": "Selecciona el plural correcto: ‘la camisa __’",
+      "options": [
+        "rojos",
+        "rojas",
+        "rojo"
+      ],
+      "answer": "rojas",
+      "pcic_tags": [
+        "adjetivos",
+        "acuerdo"
+      ]
+    },
+    {
+      "id": "Q_A1_18",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: I need a doctor.",
+      "answer": "Necesito un médico.",
+      "pcic_tags": [
+        "salud"
+      ]
+    },
+    {
+      "id": "Q_A1_19",
+      "level": "A1",
+      "type": "cloze",
+      "prompt": "Completa: “Quiero pagar con ___ (card).”",
+      "answer": "tarjeta",
+      "pcic_tags": [
+        "compras",
+        "pagos"
+      ]
+    },
+    {
+      "id": "Q_A1_20",
+      "level": "A1",
+      "type": "translate",
+      "prompt": "Translate: We’re going to see a film.",
+      "answer": "Vamos a ver una película.",
+      "pcic_tags": [
+        "futuro_proximo",
+        "ocio"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T_A1_06",
+      "level": "A1",
+      "type": "shopping",
+      "es": "Pregunta por el precio de 3 cosas con ‘¿Cuánto cuesta…?’",
+      "en": "Ask the price of 3 things using ‘¿Cuánto cuesta…?’"
+    },
+    {
+      "id": "T_A1_07",
+      "level": "A1",
+      "type": "shopping",
+      "es": "Describe una prenda: color + talla + precio aproximado.",
+      "en": "Describe a garment: colour + size + approx price."
+    },
+    {
+      "id": "T_A1_08",
+      "level": "A1",
+      "type": "health",
+      "es": "Di 2 síntomas y una necesidad: “Tengo dolor de __. Necesito __.”",
+      "en": "Say 2 symptoms and a need: “I have a __ ache. I need __.”"
+    },
+    {
+      "id": "T_A1_09",
+      "level": "A1",
+      "type": "plans",
+      "es": "Escribe 3 planes con ‘Voy a…’ para esta semana.",
+      "en": "Write 3 plans with ‘Voy a…’ for this week."
+    },
+    {
+      "id": "T_A1_10",
+      "level": "A1",
+      "type": "directions",
+      "es": "Da indicaciones desde tu casa hasta un lugar cercano (3 pasos).",
+      "en": "Give directions from your home to a nearby place (3 steps)."
+    }
+  ],
+  "reflections": [
+    {
+      "id": "R_08",
+      "es": "¿Qué compraste/comprarías hoy en español?",
+      "en": "What did/would you buy today (in Spanish)?"
+    },
+    {
+      "id": "R_09",
+      "es": "Escribe una frase con ‘Voy a…’",
+      "en": "Write one sentence with ‘Voy a…’"
+    },
+    {
+      "id": "R_10",
+      "es": "Una cosa que te duele decir en español 😅",
+      "en": "One thing that’s ‘painful’ to say in Spanish 😅"
+    },
+    {
+      "id": "R_11",
+      "es": "¿Qué color y talla usas normalmente?",
+      "en": "What colour and size do you usually wear?"
+    },
+    {
+      "id": "R_12",
+      "es": "¿Qué sitio está cerca/lejos de tu casa?",
+      "en": "What place is near/far from your home?"
+    },
+    {
+      "id": "R_13",
+      "es": "¿Qué pedirías en el mercado mañana?",
+      "en": "What would you ask for at the market tomorrow?"
+    },
+    {
+      "id": "R_14",
+      "es": "Tu mini victoria de hoy en español 💪",
+      "en": "Your small Spanish win today 💪"
+    }
+  ],
+  "lesson_plans": [
+    {
+      "id": "L08",
+      "focus": "A1 – shopping basics (prices)",
+      "warmup": "O_A1_05",
+      "quiz": [
+        "Q_A1_11",
+        "Q_A1_19"
+      ],
+      "task": "T_A1_06",
+      "reflection": "R_08",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L09",
+      "focus": "A1 – shopping (colours & sizes)",
+      "warmup": "O_A1_06",
+      "quiz": [
+        "Q_A1_14",
+        "Q_A1_17"
+      ],
+      "task": "T_A1_07",
+      "reflection": "R_11",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L10",
+      "focus": "A1 – health basics",
+      "warmup": "O_A1_07",
+      "quiz": [
+        "Q_A1_13",
+        "Q_A1_18"
+      ],
+      "task": "T_A1_08",
+      "reflection": "R_10",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L11",
+      "focus": "A1 – social plans (ir + a + inf.)",
+      "warmup": "O_A1_08",
+      "quiz": [
+        "Q_A1_12",
+        "Q_A1_20"
+      ],
+      "task": "T_A1_09",
+      "reflection": "R_09",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L12",
+      "focus": "A1 – directions review (near/far)",
+      "warmup": "O_A1_09",
+      "quiz": [
+        "Q_A1_15",
+        "Q_A1_16"
+      ],
+      "task": "T_A1_10",
+      "reflection": "R_12",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L13",
+      "focus": "A1 – market phrases & quantities",
+      "warmup": "O_A1_10",
+      "quiz": [
+        "Q_A1_11",
+        "Q_A1_19"
+      ],
+      "task": "T_A1_06",
+      "reflection": "R_13",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    },
+    {
+      "id": "L14",
+      "focus": "A1 – consolidation & choice",
+      "warmup": "O_A1_08",
+      "quiz": [
+        "Q_A1_12",
+        "Q_A1_17"
+      ],
+      "task": "T_A1_09",
+      "reflection": "R_14",
+      "completion_criteria": {
+        "min_quiz_correct": 1,
+        "require_task_response": true
+      }
+    }
+  ]
+}
