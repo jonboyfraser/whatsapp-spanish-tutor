@@ -4,7 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import twilio from 'twilio';
+import pkg from 'pg';
 
+const { Pool } = pkg;
 const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 
@@ -12,6 +14,13 @@ app.use(bodyParser.urlencoded({ extended: false }));
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const FROM = process.env.TWILIO_WHATSAPP_NUMBER;
 
+// Postgres connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// __dirname fix for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -20,27 +29,41 @@ const week1 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week1_pla
 const week2 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week2_playbook_progress.json')));
 const playbooks = [week1, week2];
 
-// In-memory user state
-const users = new Map();
-
+// Send WhatsApp
 function sendWhatsApp(to, lines) {
   const body = lines.filter(Boolean).join('\n');
   return client.messages.create({ from: FROM, to, body });
 }
 
+// Bilingual helper
 function bilingual(es, en, mode) {
   if (mode === 'ES') return [`ES: ${es}`];
   if (mode === 'EN') return [`EN: ${en}`];
-  return [`ES: ${es}`, `EN: ${en.slice(0,120)}`];
+  return [`ES: ${es}`, `EN: ${en}`];
 }
 
-function getUserState(from) {
-  if (!users.has(from)) {
-    users.set(from, { mode: 'BILINGÜE', lessonId: 'L01', accuracy: 1.0, lastQuiz: null, expectTask: null });
+// DB-backed user state
+async function getOrCreateUser(phone) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT * FROM users WHERE phone = $1', [phone]);
+    if (result.rows.length > 0) {
+      return result.rows[0];
+    } else {
+      const insert = await client.query(
+        `INSERT INTO users (phone, mode, lesson_id, accuracy) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING *`,
+        [phone, 'BILINGÜE', 'L01', 1.0]
+      );
+      return insert.rows[0];
+    }
+  } finally {
+    client.release();
   }
-  return users.get(from);
 }
 
+// Find lesson
 function findLesson(lessonId) {
   for (const pb of playbooks) {
     const lesson = pb.lesson_plans.find(l => l.id === lessonId);
@@ -49,6 +72,7 @@ function findLesson(lessonId) {
   return null;
 }
 
+// Next lesson
 function nextLessonId(currentId) {
   const ids = [];
   for (const pb of playbooks) ids.push(...pb.lesson_plans.map(l => l.id));
@@ -56,11 +80,13 @@ function nextLessonId(currentId) {
   return idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : currentId;
 }
 
+// ✅ Webhook
 app.post('/webhook/whatsapp', async (req, res) => {
-console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
+  console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
+
   const from = req.body.From;
   const text = (req.body.Body || '').trim();
-  const state = getUserState(from);
+  const state = await getOrCreateUser(from);
 
   if (['ES','EN','BILINGÜE','BILINGUE'].includes(text.toUpperCase())) {
     state.mode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
@@ -68,7 +94,7 @@ console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
     return res.end();
   }
 
-  const found = findLesson(state.lessonId) || {};
+  const found = findLesson(state.lesson_id) || {};
   const { lesson, pb } = found;
 
   if (/^WARMUP$/i.test(text)) {
@@ -87,37 +113,12 @@ console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
     return res.end();
   }
 
-  if (state.lastQuiz) {
-    const q = pb.quizzes.find(x => x.id === state.lastQuiz);
-    if (q) {
-      const norm = s => String(s).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').trim();
-      const correct = norm(text) === norm(q.answer);
-      if (correct) {
-        await sendWhatsApp(from, bilingual('¡Correcto! 👏', 'Correct!', state.mode));
-        state.accuracy = (state.accuracy * 0.7) + (1 * 0.3);
-      } else {
-        await sendWhatsApp(from, bilingual(`Casi. Modelo: ${q.answer}`, `Almost. Model: ${q.answer}`, state.mode));
-        state.accuracy = (state.accuracy * 0.7);
-      }
-      state.lastQuiz = null;
-    }
-    return res.end();
-  }
-
   if (/^TASK$/i.test(text)) {
     const task = pb.tasks.find(t => t.id === lesson.task);
     if (task) {
       await sendWhatsApp(from, bilingual(task.es, task.en, state.mode));
       state.expectTask = lesson.task;
     }
-    return res.end();
-  }
-
-  if (state.expectTask) {
-    await sendWhatsApp(from, bilingual('¡Gracias! Tarea recibida.', 'Thanks! Task received.', state.mode));
-    state.expectTask = null;
-    state.lessonId = nextLessonId(state.lessonId);
-    await sendWhatsApp(from, bilingual(`Avanzamos a la lección ${state.lessonId}.`, `Advancing to lesson ${state.lessonId}.`, state.mode));
     return res.end();
   }
 
@@ -135,37 +136,29 @@ console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
   res.end();
 });
 
+// Root route
 app.get('/', (_,res)=> res.send('OK'));
-// Add this near the bottom of index.js, above app.listen()
 
-// Simple starter bank by slot
+// Starters for cron
 const starters = {
-  morning: {
-    es: "¿Qué desayunaste hoy? 🌞",
-    en: "What did you have for breakfast today? 🌞"
-  },
-  noon: {
-    es: "Háblame de tu familia 👨‍👩‍👧",
-    en: "Tell me about your family 👨‍👩‍👧"
-  },
-  evening: {
-    es: "¿Te gusta ver películas? 🎬",
-    en: "Do you like watching movies? 🎬"
-  }
+  morning: { es: "¿Qué desayunaste hoy? 🌞", en: "What did you have for breakfast today? 🌞" },
+  noon: { es: "Háblame de tu familia 👨‍👩‍👧", en: "Tell me about your family 👨‍👩‍👧" },
+  evening: { es: "¿Te gusta ver películas? 🎬", en: "Do you like watching movies? 🎬" }
 };
 
-// Endpoint for scheduled triggers
 app.get('/cron/trigger', async (req, res) => {
   const slot = req.query.slot; // morning | noon | evening
   const starter = starters[slot];
+  if (!starter) return res.end("Invalid slot");
 
-  if (!starter) {
-    return res.end("Invalid slot");
-  }
-
-  // Send to all active users
-  for (const [phone, state] of users.entries()) {
-    await sendWhatsApp(phone, bilingual(starter.es, starter.en, state.mode));
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT * FROM users');
+    for (const row of result.rows) {
+      await sendWhatsApp(row.phone, bilingual(starter.es, starter.en, row.mode));
+    }
+  } finally {
+    client.release();
   }
 
   res.end("Starter sent");
