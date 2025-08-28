@@ -56,8 +56,8 @@ function nextLessonId(currentId) {
   return idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : currentId;
 }
 
-console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
 app.post('/webhook/whatsapp', async (req, res) => {
+console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
   const from = req.body.From;
   const text = (req.body.Body || '').trim();
   const state = getUserState(from);
