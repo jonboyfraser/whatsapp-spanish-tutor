@@ -135,4 +135,39 @@ app.post('/webhook/whatsapp', async (req, res) => {
 });
 
 app.get('/', (_,res)=> res.send('OK'));
+// Add this near the bottom of index.js, above app.listen()
+
+// Simple starter bank by slot
+const starters = {
+  morning: {
+    es: "¿Qué desayunaste hoy? 🌞",
+    en: "What did you have for breakfast today? 🌞"
+  },
+  noon: {
+    es: "Háblame de tu familia 👨‍👩‍👧",
+    en: "Tell me about your family 👨‍👩‍👧"
+  },
+  evening: {
+    es: "¿Te gusta ver películas? 🎬",
+    en: "Do you like watching movies? 🎬"
+  }
+};
+
+// Endpoint for scheduled triggers
+app.get('/cron/trigger', async (req, res) => {
+  const slot = req.query.slot; // morning | noon | evening
+  const starter = starters[slot];
+
+  if (!starter) {
+    return res.end("Invalid slot");
+  }
+
+  // Send to all active users
+  for (const [phone, state] of users.entries()) {
+    await sendWhatsApp(phone, bilingual(starter.es, starter.en, state.mode));
+  }
+
+  res.end("Starter sent");
+});
+
 app.listen(process.env.PORT || 3000, ()=> console.log('Server running'));
