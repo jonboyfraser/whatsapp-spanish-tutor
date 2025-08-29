@@ -127,20 +127,20 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // TASK → Spanish only
+  // TASK → BILINGÜE
   if (/^TASK$/i.test(text)) {
     const task = pb.tasks.find(t => t.id === lesson.task);
     if (task) {
-      await sendWhatsApp(from, bilingual(task.es, task.en, 'ES'));
+      await sendWhatsApp(from, bilingual(task.es, task.en, 'BILINGÜE'));
       await updateUser(from, { expecttask: lesson.task });
     }
     return res.end();
   }
 
-  // REFLECT → Spanish only
+  // REFLECT → BILINGÜE
   if (/^REFLECT$/i.test(text)) {
     const refl = pb.reflections.find(r => r.id === lesson.reflection);
-    if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'ES'));
+    if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'BILINGÜE'));
     return res.end();
   }
 
