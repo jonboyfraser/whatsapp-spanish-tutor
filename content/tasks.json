@@ -1,0 +1,37 @@
+[
+  { "id": "T1", "prompt_es": "Escribe 3 frases sobre tu familia.", "prompt_en": "Write 3 sentences about your family.", "expected_output": "ES" },
+  { "id": "T2", "prompt_es": "Describe qué desayunas normalmente.", "prompt_en": "Describe what you usually have for breakfast.", "expected_output": "ES" },
+  { "id": "T3", "prompt_es": "Cuenta 2 frases sobre tus planes para el fin de semana.", "prompt_en": "Write 2 sentences about your weekend plans.", "expected_output": "ES" },
+  { "id": "T4", "prompt_es": "Escribe 3 frases sobre tu casa o apartamento.", "prompt_en": "Write 3 sentences about your house or apartment.", "expected_output": "ES" },
+  { "id": "T5", "prompt_es": "Escribe una frase usando 'tengo' y otra usando 'quiero'.", "prompt_en": "Write one sentence using 'tengo' (I have) and another with 'quiero' (I want).", "expected_output": "ES" },
+
+  { "id": "T6", "prompt_es": "Describe lo que haces un día normal.", "prompt_en": "Describe what you do on a normal day.", "expected_output": "ES" },
+  { "id": "T7", "prompt_es": "Escribe 3 frases sobre tus amigos.", "prompt_en": "Write 3 sentences about your friends.", "expected_output": "ES" },
+  { "id": "T8", "prompt_es": "Cuenta qué ropa llevas hoy.", "prompt_en": "Write about the clothes you are wearing today.", "expected_output": "ES" },
+  { "id": "T9", "prompt_es": "Escribe 3 frases con el verbo 'ir'.", "prompt_en": "Write 3 sentences using the verb 'ir' (to go).", "expected_output": "ES" },
+  { "id": "T10", "prompt_es": "Describe tu comida favorita.", "prompt_en": "Describe your favourite food.", "expected_output": "ES" },
+
+  { "id": "T11", "prompt_es": "Cuenta cómo es tu ciudad o pueblo.", "prompt_en": "Describe your town or city.", "expected_output": "ES" },
+  { "id": "T12", "prompt_es": "Escribe 2 frases con 'me gusta'.", "prompt_en": "Write 2 sentences using 'me gusta' (I like).", "expected_output": "ES" },
+  { "id": "T13", "prompt_es": "Escribe 3 frases en pasado sobre lo que hiciste ayer.", "prompt_en": "Write 3 sentences in past tense about what you did yesterday.", "expected_output": "ES" },
+  { "id": "T14", "prompt_es": "Describe tu rutina de la mañana en 4 frases.", "prompt_en": "Describe your morning routine in 4 sentences.", "expected_output": "ES" },
+  { "id": "T15", "prompt_es": "Escribe una frase con 'puedo' y otra con 'quiero'.", "prompt_en": "Write one sentence with 'puedo' (I can) and one with 'quiero' (I want).", "expected_output": "ES" },
+
+  { "id": "T16", "prompt_es": "Escribe 3 frases sobre tu trabajo o estudios.", "prompt_en": "Write 3 sentences about your job or studies.", "expected_output": "ES" },
+  { "id": "T17", "prompt_es": "Describe tu fin de semana ideal.", "prompt_en": "Describe your ideal weekend.", "expected_output": "ES" },
+  { "id": "T18", "prompt_es": "Cuenta qué tiempo hace hoy en tu ciudad.", "prompt_en": "Write about the weather in your city today.", "expected_output": "ES" },
+  { "id": "T19", "prompt_es": "Escribe 3 frases sobre lo que te gusta hacer en tu tiempo libre.", "prompt_en": "Write 3 sentences about what you like to do in your free time.", "expected_output": "ES" },
+  { "id": "T20", "prompt_es": "Describe a tu mejor amigo/a en 3 frases.", "prompt_en": "Describe your best friend in 3 sentences.", "expected_output": "ES" },
+
+  { "id": "T21", "prompt_es": "Escribe 2 frases sobre tus vacaciones pasadas.", "prompt_en": "Write 2 sentences about your last holiday.", "expected_output": "ES" },
+  { "id": "T22", "prompt_es": "Describe qué haces los domingos.", "prompt_en": "Describe what you do on Sundays.", "expected_output": "ES" },
+  { "id": "T23", "prompt_es": "Escribe 3 frases usando 'me encanta'.", "prompt_en": "Write 3 sentences using 'me encanta' (I love).", "expected_output": "ES" },
+  { "id": "T24", "prompt_es": "Describe tu habitación en 3 frases.", "prompt_en": "Describe your bedroom in 3 sentences.", "expected_output": "ES" },
+  { "id": "T25", "prompt_es": "Cuenta qué haces cuando hace calor.", "prompt_en": "Say what you do when it’s hot.", "expected_output": "ES" },
+
+  { "id": "T26", "prompt_es": "Escribe 3 frases con el verbo 'tener'.", "prompt_en": "Write 3 sentences with the verb 'tener' (to have).", "expected_output": "ES" },
+  { "id": "T27", "prompt_es": "Describe lo que comes en la cena normalmente.", "prompt_en": "Describe what you usually eat for dinner.", "expected_output": "ES" },
+  { "id": "T28", "prompt_es": "Escribe 2 frases sobre tu deporte favorito.", "prompt_en": "Write 2 sentences about your favourite sport.", "expected_output": "ES" },
+  { "id": "T29", "prompt_es": "Cuenta cómo celebraste tu último cumpleaños.", "prompt_en": "Say how you celebrated your last birthday.", "expected_output": "ES" },
+  { "id": "T30", "prompt_es": "Escribe 3 frases en futuro sobre lo que vas a hacer mañana.", "prompt_en": "Write 3 sentences in future tense about what you are going to do tomorrow.", "expected_output": "ES" }
+]
