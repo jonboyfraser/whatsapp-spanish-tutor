@@ -37,12 +37,12 @@ function sendWhatsApp(to, lines) {
 
 // Bilingual helper
 function bilingual(es, en, mode) {
-  if (mode === 'ES') return [`ES: ${es}`];
-  if (mode === 'EN') return [`EN: ${en}`];
-  return [`ES: ${es}`, `EN: ${en}`];
+  if (mode === 'ES') return [es];
+  if (mode === 'EN') return [en];
+  return [es, en];
 }
 
-// DB-backed user state
+// DB helpers
 async function getOrCreateUser(phone) {
   const client = await pool.connect();
   try {
@@ -63,7 +63,20 @@ async function getOrCreateUser(phone) {
   }
 }
 
-// Find lesson
+async function updateUser(phone, fields) {
+  const client = await pool.connect();
+  try {
+    const set = Object.keys(fields)
+      .map((key, i) => `${key} = $${i + 2}`)
+      .join(', ');
+    const values = [phone, ...Object.values(fields)];
+    await client.query(`UPDATE users SET ${set}, updated_at = NOW() WHERE phone = $1`, values);
+  } finally {
+    client.release();
+  }
+}
+
+// Lesson helpers
 function findLesson(lessonId) {
   for (const pb of playbooks) {
     const lesson = pb.lesson_plans.find(l => l.id === lessonId);
@@ -72,7 +85,6 @@ function findLesson(lessonId) {
   return null;
 }
 
-// Next lesson
 function nextLessonId(currentId) {
   const ids = [];
   for (const pb of playbooks) ids.push(...pb.lesson_plans.map(l => l.id));
@@ -88,58 +100,63 @@ app.post('/webhook/whatsapp', async (req, res) => {
   const text = (req.body.Body || '').trim();
   const state = await getOrCreateUser(from);
 
+  // Manual override of mode
   if (['ES','EN','BILINGÜE','BILINGUE'].includes(text.toUpperCase())) {
-    state.mode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
-    await sendWhatsApp(from, bilingual(`Modo actualizado: ${state.mode}.`, `Mode updated: ${state.mode}.`, state.mode));
+    const newMode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
+    await updateUser(from, { mode: newMode });
+    await sendWhatsApp(from, bilingual(`Modo actualizado: ${newMode}.`, `Mode updated: ${newMode}.`, newMode));
     return res.end();
   }
 
   const found = findLesson(state.lesson_id) || {};
   const { lesson, pb } = found;
 
-  if (/^WARMUP$/i.test(text)) {
-    const opener = pb.openers.find(o => o.id === lesson.warmup);
-    if (opener) await sendWhatsApp(from, bilingual(opener.es, opener.en, state.mode));
+  if (!lesson) {
+    await sendWhatsApp(from, bilingual('No se encontró la lección.', 'Lesson not found.', 'BILINGÜE'));
     return res.end();
   }
 
+  // QUIZ → Spanish only
   if (/^QUIZ$/i.test(text)) {
     const qid = lesson.quiz[0];
     const q = pb.quizzes.find(x => x.id === qid);
     if (q) {
-      await sendWhatsApp(from, ['ES: ' + q.prompt]);
-      state.lastQuiz = qid;
+      await sendWhatsApp(from, [q.prompt]); // Spanish only
+      await updateUser(from, { lastquiz: qid });
     }
     return res.end();
   }
 
+  // TASK → Spanish only
   if (/^TASK$/i.test(text)) {
     const task = pb.tasks.find(t => t.id === lesson.task);
     if (task) {
-      await sendWhatsApp(from, bilingual(task.es, task.en, state.mode));
-      state.expectTask = lesson.task;
+      await sendWhatsApp(from, bilingual(task.es, task.en, 'ES'));
+      await updateUser(from, { expecttask: lesson.task });
     }
     return res.end();
   }
 
+  // REFLECT → Spanish only
   if (/^REFLECT$/i.test(text)) {
     const refl = pb.reflections.find(r => r.id === lesson.reflection);
-    if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, state.mode));
+    if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'ES'));
     return res.end();
   }
 
+  // Default help → bilingual
   await sendWhatsApp(from, bilingual(
     'Comandos: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
     'Commands: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
-    state.mode
+    'BILINGÜE'
   ));
   res.end();
 });
 
-// Root route
+// Root
 app.get('/', (_,res)=> res.send('OK'));
 
-// Starters for cron
+// Starters for cron → Spanish only
 const starters = {
   morning: { es: "¿Qué desayunaste hoy? 🌞", en: "What did you have for breakfast today? 🌞" },
   noon: { es: "Háblame de tu familia 👨‍👩‍👧", en: "Tell me about your family 👨‍👩‍👧" },
@@ -147,7 +164,7 @@ const starters = {
 };
 
 app.get('/cron/trigger', async (req, res) => {
-  const slot = req.query.slot; // morning | noon | evening
+  const slot = req.query.slot;
   const starter = starters[slot];
   if (!starter) return res.end("Invalid slot");
 
@@ -155,7 +172,8 @@ app.get('/cron/trigger', async (req, res) => {
   try {
     const result = await client.query('SELECT * FROM users');
     for (const row of result.rows) {
-      await sendWhatsApp(row.phone, bilingual(starter.es, starter.en, row.mode));
+      // Force Spanish-only for practice
+      await sendWhatsApp(row.phone, bilingual(starter.es, starter.en, 'ES'));
     }
   } finally {
     client.release();
