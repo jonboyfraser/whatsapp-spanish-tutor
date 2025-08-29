@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import twilio from 'twilio';
 import pkg from 'pg';
+import OpenAI from "openai";
 
 const { Pool } = pkg;
 const app = express();
@@ -20,6 +21,11 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
 // __dirname fix for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,11 +35,11 @@ const week1 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week1_pla
 const week2 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week2_playbook_progress.json')));
 const playbooks = [week1, week2];
 
-// ✅ Load new quiz/task libraries
+// Load new quiz/task libraries
 const quizzes = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/quizzes.json')));
 const tasks = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/tasks.json')));
 
-// ✅ Helper to pick a random item
+// Helper to pick random item
 function randomItem(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
@@ -60,10 +66,10 @@ async function getOrCreateUser(phone) {
       return result.rows[0];
     } else {
       const insert = await client.query(
-        `INSERT INTO users (phone, mode, lesson_id, accuracy) 
-         VALUES ($1, $2, $3, $4) 
+        `INSERT INTO users (phone, mode, lesson_id, accuracy, lastquiz, expecttask) 
+         VALUES ($1, $2, $3, $4, $5, $6) 
          RETURNING *`,
-        [phone, 'BILINGÜE', 'L01', 1.0]
+        [phone, 'BILINGÜE', 'L01', 1.0, null, null]
       );
       return insert.rows[0];
     }
@@ -83,6 +89,31 @@ async function updateUser(phone, fields) {
   } finally {
     client.release();
   }
+}
+
+// Analyse answer with GPT
+async function analyseAnswer(userAnswer, prompt, expectedLanguage) {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are a friendly Spanish tutor.
+Correct learners like a pen pal would.
+Always reply in Spanish AND English.
+Be concise: first give the corrected model answer in Spanish, then a short English explanation.`
+      },
+      {
+        role: "user",
+        content: `Prompt: ${prompt}
+Expected language: ${expectedLanguage}
+Learner answer: ${userAnswer}`
+      }
+    ],
+    max_tokens: 150
+  });
+
+  return completion.choices[0].message.content;
 }
 
 // Lesson helpers
@@ -125,15 +156,38 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // ✅ QUIZ → Pick random quiz from library
+  // QUIZ → Pick random quiz
   if (/^QUIZ$/i.test(text)) {
     const quiz = randomItem(quizzes);
-    await sendWhatsApp(from, [quiz.prompt]); // Spanish or English depends on quiz itself
+    await sendWhatsApp(from, [quiz.prompt]);
     await updateUser(from, { lastquiz: quiz.id });
     return res.end();
   }
 
-  // ✅ TASK → Pick random task from library (BILINGÜE instructions)
+  // If user is answering a quiz
+  if (state.lastquiz) {
+    const quiz = quizzes.find(q => q.id === state.lastquiz);
+    if (quiz) {
+      const feedback = await analyseAnswer(text, quiz.prompt, quiz.expected_language);
+
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [state.id, quiz.id, text, feedback, null]
+        );
+      } finally {
+        client.release();
+      }
+
+      await updateUser(from, { lastquiz: null });
+      await sendWhatsApp(from, [feedback]);
+    }
+    return res.end();
+  }
+
+  // TASK → Pick random task
   if (/^TASK$/i.test(text)) {
     const task = randomItem(tasks);
     await sendWhatsApp(from, bilingual(task.prompt_es, task.prompt_en, 'BILINGÜE'));
@@ -141,7 +195,30 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // REFLECT → BILINGÜE (unchanged for now)
+  // If user is answering a task
+  if (state.expecttask) {
+    const task = tasks.find(t => t.id === state.expecttask);
+    if (task) {
+      const feedback = await analyseAnswer(text, task.prompt_es, task.expected_output);
+
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [state.id, task.id, text, feedback, null]
+        );
+      } finally {
+        client.release();
+      }
+
+      await updateUser(from, { expecttask: null, lesson_id: nextLessonId(state.lesson_id) });
+      await sendWhatsApp(from, [feedback]);
+    }
+    return res.end();
+  }
+
+  // REFLECT → BILINGÜE
   if (/^REFLECT$/i.test(text)) {
     const refl = pb.reflections.find(r => r.id === lesson.reflection);
     if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'BILINGÜE'));
@@ -176,7 +253,6 @@ app.get('/cron/trigger', async (req, res) => {
   try {
     const result = await client.query('SELECT * FROM users');
     for (const row of result.rows) {
-      // Force Spanish-only for practice
       await sendWhatsApp(row.phone, bilingual(starter.es, starter.en, 'ES'));
     }
   } finally {
