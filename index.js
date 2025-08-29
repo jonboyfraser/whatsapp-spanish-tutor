@@ -29,6 +29,15 @@ const week1 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week1_pla
 const week2 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week2_playbook_progress.json')));
 const playbooks = [week1, week2];
 
+// ✅ Load new quiz/task libraries
+const quizzes = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/quizzes.json')));
+const tasks = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/tasks.json')));
+
+// ✅ Helper to pick a random item
+function randomItem(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 // Send WhatsApp
 function sendWhatsApp(to, lines) {
   const body = lines.filter(Boolean).join('\n');
@@ -116,28 +125,23 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // QUIZ → Spanish only
+  // ✅ QUIZ → Pick random quiz from library
   if (/^QUIZ$/i.test(text)) {
-    const qid = lesson.quiz[0];
-    const q = pb.quizzes.find(x => x.id === qid);
-    if (q) {
-      await sendWhatsApp(from, [q.prompt]); // Spanish only
-      await updateUser(from, { lastquiz: qid });
-    }
+    const quiz = randomItem(quizzes);
+    await sendWhatsApp(from, [quiz.prompt]); // Spanish or English depends on quiz itself
+    await updateUser(from, { lastquiz: quiz.id });
     return res.end();
   }
 
-  // TASK → BILINGÜE
+  // ✅ TASK → Pick random task from library (BILINGÜE instructions)
   if (/^TASK$/i.test(text)) {
-    const task = pb.tasks.find(t => t.id === lesson.task);
-    if (task) {
-      await sendWhatsApp(from, bilingual(task.es, task.en, 'BILINGÜE'));
-      await updateUser(from, { expecttask: lesson.task });
-    }
+    const task = randomItem(tasks);
+    await sendWhatsApp(from, bilingual(task.prompt_es, task.prompt_en, 'BILINGÜE'));
+    await updateUser(from, { expecttask: task.id });
     return res.end();
   }
 
-  // REFLECT → BILINGÜE
+  // REFLECT → BILINGÜE (unchanged for now)
   if (/^REFLECT$/i.test(text)) {
     const refl = pb.reflections.find(r => r.id === lesson.reflection);
     if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'BILINGÜE'));
