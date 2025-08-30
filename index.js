@@ -91,7 +91,7 @@ async function updateUser(phone, fields) {
   }
 }
 
-// Analyse answer with GPT
+// Analyse answer with GPT + scoring
 async function analyseAnswer(userAnswer, prompt, expectedLanguage) {
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -101,7 +101,11 @@ async function analyseAnswer(userAnswer, prompt, expectedLanguage) {
         content: `You are a friendly Spanish tutor.
 Correct learners like a pen pal would.
 Always reply in Spanish AND English.
-Be concise: first give the corrected model answer in Spanish, then a short English explanation.`
+Be concise: first give the corrected model answer in Spanish, then a short English explanation.
+Always begin feedback with one of these tags:
+✔️ Correcto – if the answer is correct
+🤏 Casi – if the answer is almost correct (minor spelling/grammar/context errors)
+❌ Incorrecto – if the answer is wrong.`
       },
       {
         role: "user",
@@ -110,10 +114,18 @@ Expected language: ${expectedLanguage}
 Learner answer: ${userAnswer}`
       }
     ],
-    max_tokens: 150
+    max_tokens: 200
   });
 
-  return completion.choices[0].message.content;
+  const feedback = completion.choices[0].message.content.trim();
+
+  // Assign a numeric score
+  let score = 0;
+  if (feedback.startsWith("✔️ Correcto")) score = 1;
+  else if (feedback.startsWith("🤏 Casi")) score = 0.5;
+  else if (feedback.startsWith("❌ Incorrecto")) score = 0;
+
+  return { feedback, score };
 }
 
 // Lesson helpers
@@ -168,14 +180,14 @@ app.post('/webhook/whatsapp', async (req, res) => {
   if (state.lastquiz) {
     const quiz = quizzes.find(q => q.id === state.lastquiz);
     if (quiz) {
-      const feedback = await analyseAnswer(text, quiz.prompt, quiz.expected_language);
+      const { feedback, score } = await analyseAnswer(text, quiz.prompt, quiz.expected_language);
 
       const client = await pool.connect();
       try {
         await client.query(
           `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score)
            VALUES ($1, $2, $3, $4, $5)`,
-          [state.id, quiz.id, text, feedback, null]
+          [state.id, quiz.id, text, feedback, score]
         );
       } finally {
         client.release();
@@ -199,14 +211,14 @@ app.post('/webhook/whatsapp', async (req, res) => {
   if (state.expecttask) {
     const task = tasks.find(t => t.id === state.expecttask);
     if (task) {
-      const feedback = await analyseAnswer(text, task.prompt_es, task.expected_output);
+      const { feedback, score } = await analyseAnswer(text, task.prompt_es, task.expected_output);
 
       const client = await pool.connect();
       try {
         await client.query(
           `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score)
            VALUES ($1, $2, $3, $4, $5)`,
-          [state.id, task.id, text, feedback, null]
+          [state.id, task.id, text, feedback, score]
         );
       } finally {
         client.release();
