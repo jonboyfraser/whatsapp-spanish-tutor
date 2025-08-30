@@ -237,6 +237,37 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
+  // SCORE → Calculate user success rate
+  if (/^SCORE$/i.test(text)) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT AVG(score) as avg_score
+         FROM messages
+         WHERE user_id = $1`,
+        [state.id]
+      );
+
+      if (result.rows[0].avg_score !== null) {
+        const avg = (result.rows[0].avg_score * 100).toFixed(1);
+        await sendWhatsApp(from, bilingual(
+          `Tu tasa de éxito es ${avg}%`,
+          `Your success rate is ${avg}%`,
+          'BILINGÜE'
+        ));
+      } else {
+        await sendWhatsApp(from, bilingual(
+          "Aún no tienes respuestas registradas.",
+          "You don’t have any recorded answers yet.",
+          'BILINGÜE'
+        ));
+      }
+    } finally {
+      client.release();
+    }
+    return res.end();
+  }
+  
   // Default help → bilingual
   await sendWhatsApp(from, bilingual(
     'Comandos: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
