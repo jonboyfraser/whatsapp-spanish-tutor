@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import twilio from 'twilio';
 import pkg from 'pg';
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 const { Pool } = pkg;
 const app = express();
@@ -15,61 +15,77 @@ app.use(bodyParser.urlencoded({ extended: false }));
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const FROM = process.env.TWILIO_WHATSAPP_NUMBER;
 
-// Postgres pool
+// Postgres connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
 // OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load playbooks
-const week1 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week1_playbook_progress.json')));
-const week2 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week2_playbook_progress.json')));
-const playbooks = [week1, week2];
+// Load new quiz/task libraries
+const quizzes = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/quizzes.json')));
+const tasks = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/tasks.json')));
 
-// In-memory user state
-const users = new Map();
+// Helper to pick random item
+function randomItem(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
 
+// Send WhatsApp
 function sendWhatsApp(to, lines) {
   const body = lines.filter(Boolean).join('\n');
   return client.messages.create({ from: FROM, to, body });
 }
 
+// Bilingual helper
 function bilingual(es, en, mode) {
-  if (mode === 'ES') return [`ES: ${es}`];
-  if (mode === 'EN') return [`EN: ${en}`];
-  return [`ES: ${es}`, `EN: ${en.slice(0,120)}`];
+  if (mode === 'ES') return [es];
+  if (mode === 'EN') return [en];
+  return [es, en];
 }
 
-function getUserState(from) {
-  if (!users.has(from)) {
-    users.set(from, { mode: 'BILINGÜE', lessonId: 'L01', accuracy: 1.0, lastQuiz: null, expectTask: null });
+// DB helpers
+async function getOrCreateUser(phone) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT * FROM users WHERE phone = $1', [phone]);
+    if (result.rows.length > 0) {
+      return result.rows[0];
+    } else {
+      const insert = await client.query(
+        `INSERT INTO users (phone, mode, lesson_id, accuracy, lastquiz, expecttask) 
+         VALUES ($1, $2, $3, $4, $5, $6) 
+         RETURNING *`,
+        [phone, 'BILINGÜE', 'L01', 1.0, null, null]
+      );
+      return insert.rows[0];
+    }
+  } finally {
+    client.release();
   }
-  return users.get(from);
 }
 
-function findLesson(lessonId) {
-  for (const pb of playbooks) {
-    const lesson = pb.lesson_plans.find(l => l.id === lessonId);
-    if (lesson) return { lesson, pb };
+async function updateUser(phone, fields) {
+  const client = await pool.connect();
+  try {
+    const set = Object.keys(fields)
+      .map((key, i) => `${key} = $${i + 2}`)
+      .join(', ');
+    const values = [phone, ...Object.values(fields)];
+    await client.query(`UPDATE users SET ${set}, updated_at = NOW() WHERE phone = $1`, values);
+  } finally {
+    client.release();
   }
-  return null;
 }
 
-function nextLessonId(currentId) {
-  const ids = [];
-  for (const pb of playbooks) ids.push(...pb.lesson_plans.map(l => l.id));
-  const idx = ids.indexOf(currentId);
-  return idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : currentId;
-}
-
-// ---------- NEW FUNCTION: Analyse & Save Answer ----------
+// Analyse answer with GPT and save to DB
 async function analyseAndSave(userId, promptId, userAnswer) {
   try {
     const completion = await openai.chat.completions.create({
@@ -77,18 +93,19 @@ async function analyseAndSave(userId, promptId, userAnswer) {
       messages: [
         {
           role: "system",
-          content:
-            "You are a strict but friendly Spanish tutor. Always start your feedback with one of these tags:\n" +
-            "- '✔️ Correcto' if the answer is correct\n" +
-            "- '🤏 Casi' if the answer is almost correct (minor errors, spelling, grammar)\n" +
-            "- '❌ Incorrecto' if the answer is wrong\n\n" +
-            "After the tag, give a short correction in Spanish + English explanation. Always bilingual."
+          content: `You are a strict but friendly Spanish tutor.
+Always start with one of these tags:
+- "✔️ Correcto" if the answer is correct
+- "🤏 Casi" if the answer is almost correct
+- "❌ Incorrecto" if the answer is wrong
+Then give a short correction in Spanish + English explanation. Always bilingual.`
         },
         {
           role: "user",
           content: userAnswer
         }
-      ]
+      ],
+      max_tokens: 150
     });
 
     const analysis = completion.choices[0].message.content.trim();
@@ -99,7 +116,7 @@ async function analyseAndSave(userId, promptId, userAnswer) {
     else if (analysis.startsWith("🤏 Casi")) score = 0.5;
     else if (analysis.startsWith("❌ Incorrecto")) score = 0;
 
-    // Save to database
+    // Save to DB
     await pool.query(
       `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score, created_at)
        VALUES ($1, $2, $3, $4, $5, NOW())`,
@@ -112,109 +129,93 @@ async function analyseAndSave(userId, promptId, userAnswer) {
     return { analysis: "⚠️ Sorry, something went wrong analysing your answer.", score: 0 };
   }
 }
-// --------------------------------------------------------
 
+// Webhook
 app.post('/webhook/whatsapp', async (req, res) => {
+  console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
+
   const from = req.body.From;
   const text = (req.body.Body || '').trim();
-  const state = getUserState(from);
+  const state = await getOrCreateUser(from);
 
+  // Manual override of mode
   if (['ES','EN','BILINGÜE','BILINGUE'].includes(text.toUpperCase())) {
-    state.mode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
-    await sendWhatsApp(from, bilingual(`Modo actualizado: ${state.mode}.`, `Mode updated: ${state.mode}.`, state.mode));
+    const newMode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
+    await updateUser(from, { mode: newMode });
+    await sendWhatsApp(from, bilingual(`Modo actualizado: ${newMode}.`, `Mode updated: ${newMode}.`, newMode));
     return res.end();
   }
 
-  const found = findLesson(state.lessonId) || {};
-  const { lesson, pb } = found;
-
-  if (/^WARMUP$/i.test(text)) {
-    const opener = pb.openers.find(o => o.id === lesson.warmup);
-    if (opener) await sendWhatsApp(from, bilingual(opener.es, opener.en, state.mode));
-    return res.end();
-  }
-
+  // QUIZ
   if (/^QUIZ$/i.test(text)) {
-    const qid = lesson.quiz[0];
-    const q = pb.quizzes.find(x => x.id === qid);
-    if (q) {
-      await sendWhatsApp(from, ['ES: ' + q.prompt]);
-      state.lastQuiz = qid;
-    }
+    const quiz = randomItem(quizzes);
+    await sendWhatsApp(from, [quiz.prompt]);
+    await updateUser(from, { lastquiz: quiz.id });
     return res.end();
   }
 
-  if (state.lastQuiz) {
-    const q = pb.quizzes.find(x => x.id === state.lastQuiz);
-    if (q) {
-      const { analysis, score } = await analyseAndSave(1, q.id, text);
+  // Answering a quiz
+  if (state.lastquiz) {
+    const quiz = quizzes.find(q => q.id === state.lastquiz);
+    if (quiz) {
+      const { analysis } = await analyseAndSave(state.id, quiz.id, text);
       await sendWhatsApp(from, [analysis]);
-      state.lastQuiz = null;
+      await updateUser(from, { lastquiz: null });
     }
     return res.end();
   }
 
+  // TASK
   if (/^TASK$/i.test(text)) {
-    const task = pb.tasks.find(t => t.id === lesson.task);
+    const task = randomItem(tasks);
+    await sendWhatsApp(from, bilingual(task.prompt_es, task.prompt_en, 'BILINGÜE'));
+    await updateUser(from, { expecttask: task.id });
+    return res.end();
+  }
+
+  // Answering a task
+  if (state.expecttask) {
+    const task = tasks.find(t => t.id === state.expecttask);
     if (task) {
-      await sendWhatsApp(from, bilingual(task.es, task.en, state.mode));
-      state.expectTask = lesson.task;
+      const { analysis } = await analyseAndSave(state.id, task.id, text);
+      await sendWhatsApp(from, [analysis]);
+      await updateUser(from, { expecttask: null, lesson_id: 'L02' });
     }
     return res.end();
   }
 
-  if (state.expectTask) {
-    const { analysis, score } = await analyseAndSave(1, state.expectTask, text);
-    await sendWhatsApp(from, [analysis]);
-    state.expectTask = null;
-    state.lessonId = nextLessonId(state.lessonId);
-    await sendWhatsApp(from, bilingual(`Avanzamos a la lección ${state.lessonId}.`, `Advancing to lesson ${state.lessonId}.`, state.mode));
-    return res.end();
-  }
-
-  if (/^REFLECT$/i.test(text)) {
-    const refl = pb.reflections.find(r => r.id === lesson.reflection);
-    if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, state.mode));
-    return res.end();
-  }
-
+  // Default help
   await sendWhatsApp(from, bilingual(
-    'Comandos: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
-    'Commands: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
+    'Comandos: QUIZ, TASK, ES, EN, BILINGÜE.',
+    'Commands: QUIZ, TASK, ES, EN, BILINGÜE.',
     state.mode
   ));
   res.end();
 });
 
+// Root
 app.get('/', (_,res)=> res.send('OK'));
 
-// Simple starter bank by slot
+// Starters for cron
 const starters = {
-  morning: {
-    es: "¿Qué desayunaste hoy? 🌞",
-    en: "What did you have for breakfast today? 🌞"
-  },
-  noon: {
-    es: "Háblame de tu familia 👨‍👩‍👧",
-    en: "Tell me about your family 👨‍👩‍👧"
-  },
-  evening: {
-    es: "¿Te gusta ver películas? 🎬",
-    en: "Do you like watching movies? 🎬"
-  }
+  morning: { es: "¿Qué desayunaste hoy? 🌞", en: "What did you have for breakfast today? 🌞" },
+  noon: { es: "Háblame de tu familia 👨‍👩‍👧", en: "Tell me about your family 👨‍👩‍👧" },
+  evening: { es: "¿Te gusta ver películas? 🎬", en: "Do you like watching movies? 🎬" }
 };
 
-// Endpoint for scheduled triggers
 app.get('/cron/trigger', async (req, res) => {
-  const slot = req.query.slot; // morning | noon | evening
+  const slot = req.query.slot;
   const starter = starters[slot];
+  if (!starter) return res.end("Invalid slot");
 
-  if (!starter) {
-    return res.end("Invalid slot");
-  }
-
-  for (const [phone, state] of users.entries()) {
-    await sendWhatsApp(phone, bilingual(starter.es, starter.en, state.mode));
+  const client = await pool.connect();
+  try {
+    const result = await client.query('SELECT * FROM users');
+    for (const row of result.rows) {
+      await sendWhatsApp(row.phone, bilingual(starter.es, starter.en, 'ES'));
+    }
+  } finally {
+    client.release();
   }
 
   res.end("Starter sent");
