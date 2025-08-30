@@ -298,6 +298,18 @@ Keep the flow conversational, ask follow-up questions, and feel like a real frie
     return res.end();
   }
 
+// RESET → reset conversation replies & re-enable conversation mode
+if (/^RESET$/i.test(text)) {
+  await updateUser(from, { replies_today: 0, conversation_mode: true });
+  await sendWhatsApp(from, bilingual(
+    "✅ Contador de respuestas reiniciado. Continuemos la conversación.",
+    "✅ Reply counter reset. Conversation mode re-enabled.",
+    'BILINGÜE'
+  ));
+  return res.end();
+}
+
+  
   // SCORE
   if (/^SCORE$/i.test(text)) {
     const client = await pool.connect();
