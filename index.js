@@ -66,8 +66,8 @@ async function getOrCreateUser(phone) {
       return result.rows[0];
     } else {
       const insert = await client.query(
-        `INSERT INTO users (phone, mode, lesson_id, accuracy, lastquiz, expecttask) 
-         VALUES ($1, $2, $3, $4, $5, $6) 
+        `INSERT INTO users (phone, mode, lesson_id, accuracy, lastquiz, expecttask, conversation_mode, replies_today) 
+         VALUES ($1, $2, $3, $4, $5, $6, false, 0) 
          RETURNING *`,
         [phone, 'BILINGÜE', 'L01', 1.0, null, null]
       );
@@ -86,6 +86,36 @@ async function updateUser(phone, fields) {
       .join(', ');
     const values = [phone, ...Object.values(fields)];
     await client.query(`UPDATE users SET ${set}, updated_at = NOW() WHERE phone = $1`, values);
+  } finally {
+    client.release();
+  }
+}
+
+// Enable/disable conversation mode
+async function setConversationMode(phone, mode) {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE users 
+       SET conversation_mode = $2, replies_today = 0, updated_at = NOW() 
+       WHERE phone = $1`,
+      [phone, mode]
+    );
+  } finally {
+    client.release();
+  }
+}
+
+// Increment conversation replies
+async function incrementReplies(phone) {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `UPDATE users 
+       SET replies_today = replies_today + 1, updated_at = NOW() 
+       WHERE phone = $1`,
+      [phone]
+    );
   } finally {
     client.release();
   }
@@ -119,7 +149,6 @@ Learner answer: ${userAnswer}`
 
   const feedback = completion.choices[0].message.content.trim();
 
-  // Assign a numeric score
   let score = 0;
   if (feedback.startsWith("✔️ Correcto")) score = 1;
   else if (feedback.startsWith("🤏 Casi")) score = 0.5;
@@ -152,6 +181,40 @@ app.post('/webhook/whatsapp', async (req, res) => {
   const text = (req.body.Body || '').trim();
   const state = await getOrCreateUser(from);
 
+  // Conversation mode handling
+  if (state.conversation_mode) {
+    if (state.replies_today >= 8) {
+      await sendWhatsApp(from, bilingual(
+        "¡Qué bien charlar contigo! Hablamos mañana 😊",
+        "It’s been great chatting, let’s pick this up tomorrow.",
+        'BILINGÜE'
+      ));
+      await updateUser(from, { conversation_mode: false, replies_today: 0 });
+      return res.end();
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a Spanish pen pal and expert tutor.
+Respond naturally in Spanish. Correct mistakes gently with a short English explanation.
+Keep the flow conversational, ask follow-up questions, and feel like a real friend.`
+        },
+        { role: "user", content: text }
+      ],
+      max_tokens: 200
+    });
+
+    const reply = completion.choices[0].message.content.trim();
+
+    await sendWhatsApp(from, [reply]);
+    await incrementReplies(from);
+
+    return res.end();
+  }
+
   // Manual override of mode
   if (['ES','EN','BILINGÜE','BILINGUE'].includes(text.toUpperCase())) {
     const newMode = text.toUpperCase().replace('BILINGUE','BILINGÜE');
@@ -168,7 +231,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // QUIZ → Pick random quiz
+  // QUIZ
   if (/^QUIZ$/i.test(text)) {
     const quiz = randomItem(quizzes);
     await sendWhatsApp(from, [quiz.prompt]);
@@ -176,7 +239,6 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // If user is answering a quiz
   if (state.lastquiz) {
     const quiz = quizzes.find(q => q.id === state.lastquiz);
     if (quiz) {
@@ -199,7 +261,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // TASK → Pick random task
+  // TASK
   if (/^TASK$/i.test(text)) {
     const task = randomItem(tasks);
     await sendWhatsApp(from, bilingual(task.prompt_es, task.prompt_en, 'BILINGÜE'));
@@ -207,7 +269,6 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // If user is answering a task
   if (state.expecttask) {
     const task = tasks.find(t => t.id === state.expecttask);
     if (task) {
@@ -230,14 +291,14 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // REFLECT → BILINGÜE
+  // REFLECT
   if (/^REFLECT$/i.test(text)) {
     const refl = pb.reflections.find(r => r.id === lesson.reflection);
     if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'BILINGÜE'));
     return res.end();
   }
 
-  // SCORE → Calculate user success rate
+  // SCORE
   if (/^SCORE$/i.test(text)) {
     const client = await pool.connect();
     try {
@@ -268,7 +329,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
   
-  // Default help → bilingual
+  // Default help
   await sendWhatsApp(from, bilingual(
     'Comandos: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
     'Commands: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
@@ -280,7 +341,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
 // Root
 app.get('/', (_,res)=> res.send('OK'));
 
-// Starters for cron → Spanish only
+// Starters for cron
 const starters = {
   morning: { es: "¿Qué desayunaste hoy? 🌞", en: "What did you have for breakfast today? 🌞" },
   noon: { es: "Háblame de tu familia 👨‍👩‍👧", en: "Tell me about your family 👨‍👩‍👧" },
@@ -297,6 +358,7 @@ app.get('/cron/trigger', async (req, res) => {
     const result = await client.query('SELECT * FROM users');
     for (const row of result.rows) {
       await sendWhatsApp(row.phone, bilingual(starter.es, starter.en, 'ES'));
+      await setConversationMode(row.phone, true); // enable daily chat
     }
   } finally {
     client.release();
