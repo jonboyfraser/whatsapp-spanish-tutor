@@ -26,8 +26,14 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// __dirname fix for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load playbooks
+const week1 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week1_playbook_progress.json')));
+const week2 = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/week2_playbook_progress.json')));
+const playbooks = [week1, week2];
 
 // Load new quiz/task libraries
 const quizzes = JSON.parse(fs.readFileSync(path.join(__dirname, 'content/quizzes.json')));
@@ -85,52 +91,48 @@ async function updateUser(phone, fields) {
   }
 }
 
-// Analyse answer with GPT and save to DB
-async function analyseAndSave(userId, promptId, userAnswer) {
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are a strict but friendly Spanish tutor.
-Always start with one of these tags:
-- "✔️ Correcto" if the answer is correct
-- "🤏 Casi" if the answer is almost correct
-- "❌ Incorrecto" if the answer is wrong
-Then give a short correction in Spanish + English explanation. Always bilingual.`
-        },
-        {
-          role: "user",
-          content: userAnswer
-        }
-      ],
-      max_tokens: 150
-    });
+// Analyse answer with GPT
+async function analyseAnswer(userAnswer, prompt, expectedLanguage) {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are a friendly Spanish tutor.
+Correct learners like a pen pal would.
+Always reply in Spanish AND English.
+Be concise: first give the corrected model answer in Spanish, then a short English explanation.`
+      },
+      {
+        role: "user",
+        content: `Prompt: ${prompt}
+Expected language: ${expectedLanguage}
+Learner answer: ${userAnswer}`
+      }
+    ],
+    max_tokens: 150
+  });
 
-    const analysis = completion.choices[0].message.content.trim();
-
-    // Assign score based on prefix
-    let score = 0;
-    if (analysis.startsWith("✔️ Correcto")) score = 1;
-    else if (analysis.startsWith("🤏 Casi")) score = 0.5;
-    else if (analysis.startsWith("❌ Incorrecto")) score = 0;
-
-    // Save to DB
-    await pool.query(
-      `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [userId, promptId, userAnswer, analysis, score]
-    );
-
-    return { analysis, score };
-  } catch (err) {
-    console.error("Error in analyseAndSave:", err);
-    return { analysis: "⚠️ Sorry, something went wrong analysing your answer.", score: 0 };
-  }
+  return completion.choices[0].message.content;
 }
 
-// Webhook
+// Lesson helpers
+function findLesson(lessonId) {
+  for (const pb of playbooks) {
+    const lesson = pb.lesson_plans.find(l => l.id === lessonId);
+    if (lesson) return { lesson, pb };
+  }
+  return null;
+}
+
+function nextLessonId(currentId) {
+  const ids = [];
+  for (const pb of playbooks) ids.push(...pb.lesson_plans.map(l => l.id));
+  const idx = ids.indexOf(currentId);
+  return idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : currentId;
+}
+
+// ✅ Webhook
 app.post('/webhook/whatsapp', async (req, res) => {
   console.log("Webhook hit. From:", req.body.From, "Text:", req.body.Body);
 
@@ -146,7 +148,15 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // QUIZ
+  const found = findLesson(state.lesson_id) || {};
+  const { lesson, pb } = found;
+
+  if (!lesson) {
+    await sendWhatsApp(from, bilingual('No se encontró la lección.', 'Lesson not found.', 'BILINGÜE'));
+    return res.end();
+  }
+
+  // QUIZ → Pick random quiz
   if (/^QUIZ$/i.test(text)) {
     const quiz = randomItem(quizzes);
     await sendWhatsApp(from, [quiz.prompt]);
@@ -154,18 +164,30 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // Answering a quiz
+  // If user is answering a quiz
   if (state.lastquiz) {
     const quiz = quizzes.find(q => q.id === state.lastquiz);
     if (quiz) {
-      const { analysis } = await analyseAndSave(state.id, quiz.id, text);
-      await sendWhatsApp(from, [analysis]);
+      const feedback = await analyseAnswer(text, quiz.prompt, quiz.expected_language);
+
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [state.id, quiz.id, text, feedback, null]
+        );
+      } finally {
+        client.release();
+      }
+
       await updateUser(from, { lastquiz: null });
+      await sendWhatsApp(from, [feedback]);
     }
     return res.end();
   }
 
-  // TASK
+  // TASK → Pick random task
   if (/^TASK$/i.test(text)) {
     const task = randomItem(tasks);
     await sendWhatsApp(from, bilingual(task.prompt_es, task.prompt_en, 'BILINGÜE'));
@@ -173,22 +195,41 @@ app.post('/webhook/whatsapp', async (req, res) => {
     return res.end();
   }
 
-  // Answering a task
+  // If user is answering a task
   if (state.expecttask) {
     const task = tasks.find(t => t.id === state.expecttask);
     if (task) {
-      const { analysis } = await analyseAndSave(state.id, task.id, text);
-      await sendWhatsApp(from, [analysis]);
-      await updateUser(from, { expecttask: null, lesson_id: 'L02' });
+      const feedback = await analyseAnswer(text, task.prompt_es, task.expected_output);
+
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `INSERT INTO messages (user_id, prompt_id, user_answer, analysis, score)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [state.id, task.id, text, feedback, null]
+        );
+      } finally {
+        client.release();
+      }
+
+      await updateUser(from, { expecttask: null, lesson_id: nextLessonId(state.lesson_id) });
+      await sendWhatsApp(from, [feedback]);
     }
     return res.end();
   }
 
-  // Default help
+  // REFLECT → BILINGÜE
+  if (/^REFLECT$/i.test(text)) {
+    const refl = pb.reflections.find(r => r.id === lesson.reflection);
+    if (refl) await sendWhatsApp(from, bilingual(refl.es, refl.en, 'BILINGÜE'));
+    return res.end();
+  }
+
+  // Default help → bilingual
   await sendWhatsApp(from, bilingual(
-    'Comandos: QUIZ, TASK, ES, EN, BILINGÜE.',
-    'Commands: QUIZ, TASK, ES, EN, BILINGÜE.',
-    state.mode
+    'Comandos: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
+    'Commands: WARMUP, QUIZ, TASK, REFLECT, ES, EN, BILINGÜE.',
+    'BILINGÜE'
   ));
   res.end();
 });
@@ -196,7 +237,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
 // Root
 app.get('/', (_,res)=> res.send('OK'));
 
-// Starters for cron
+// Starters for cron → Spanish only
 const starters = {
   morning: { es: "¿Qué desayunaste hoy? 🌞", en: "What did you have for breakfast today? 🌞" },
   noon: { es: "Háblame de tu familia 👨‍👩‍👧", en: "Tell me about your family 👨‍👩‍👧" },
